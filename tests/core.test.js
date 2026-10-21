@@ -25,28 +25,34 @@ test('鄰接關係對稱且符合六方向定義', () => {
   assert.equal(edges, 30);
 });
 
-test('合法取法：1 子 15 種、2 子 30 種、3 子 70 種', () => {
+test('合法取法：1 子 15 種、2 子 30 種、3 子 18 種（直線）', () => {
   const by = [0, 0, 0, 0];
   for (const m of core.MOVES) by[core.bitCount(m)]++;
-  assert.deepEqual(by.slice(1), [15, 30, 70]);
-  // 3 子：16 個小三角形 + 54 條三子路徑（含直線與彎折）
+  assert.deepEqual(by.slice(1), [15, 30, 18]);
+  // 3 子中沒有小三角形（三顆兩兩相鄰）
   const triangles = core.MOVES.filter((m) => {
     if (core.bitCount(m) !== 3) return false;
     const [a, b, c] = core.maskToIndices(m);
     return core.isAdjacent(a, b) && core.isAdjacent(b, c) && core.isAdjacent(a, c);
   });
-  assert.equal(triangles.length, 16);
+  assert.equal(triangles.length, 0);
 });
 
-test('連通判定：直線、L 形、小三角可取；不相連不可取', () => {
+test('直線判定：相鄰且成一直線才可取；L 形、小三角、不相鄰不可取', () => {
   const m = core.numbersToMask;
-  assert.ok(core.isLegalMove(FULL, m([1, 2, 4])));   // 直線（左邊）
+  assert.ok(core.isLegalMove(FULL, m([7])));         // 單顆
+  assert.ok(core.isLegalMove(FULL, m([2, 5])));      // 相鄰兩顆
+  assert.ok(core.isLegalMove(FULL, m([1, 2, 4])));   // 左邊斜線
+  assert.ok(core.isLegalMove(FULL, m([1, 3, 6])));   // 右邊斜線
   assert.ok(core.isLegalMove(FULL, m([4, 5, 6])));   // 橫線
-  assert.ok(core.isLegalMove(FULL, m([2, 3, 5])));   // 小三角
-  assert.ok(core.isLegalMove(FULL, m([1, 2, 5])));   // 彎折
-  assert.ok(!core.isLegalMove(FULL, m([1, 4])));     // 不相鄰
+  assert.ok(core.isLegalMove(FULL, m([2, 5, 9])));   // 內部斜線
+  assert.ok(!core.isLegalMove(FULL, m([2, 3, 5])));  // 小三角
+  assert.ok(!core.isLegalMove(FULL, m([1, 2, 5])));  // L 形／彎折
+  assert.ok(!core.isLegalMove(FULL, m([2, 5, 8])));  // 彎折
+  assert.ok(!core.isLegalMove(FULL, m([4, 5, 3])));  // 彎折
+  assert.ok(!core.isLegalMove(FULL, m([1, 4])));     // 不相鄰（同線但隔一顆）
   assert.ok(!core.isLegalMove(FULL, m([4, 6])));     // 中間隔一子
-  assert.ok(!core.isLegalMove(FULL, m([1, 2, 3, 5]))); // 超過三子
+  assert.ok(!core.isLegalMove(FULL, m([7, 8, 9, 10]))); // 超過三子
   assert.ok(!core.isLegalMove(FULL ^ m([2]), m([1, 2]))); // 已被取走
   // 取走中間後兩端仍是「位置上不相鄰」
   assert.ok(!core.isLegalMove(FULL ^ m([5]), m([4, 6])));
@@ -54,23 +60,27 @@ test('連通判定：直線、L 形、小三角可取；不相連不可取', () 
 
 // 獨立的參考實作：遞迴＋備忘，以不同方式產生合法步
 function referenceSolve() {
-  const adj = (a, b) => core.NEIGHBORS[a].includes(b);
+  // 以 (列, 位置) 沿三個方向逐格延伸，列出每個局面可取的直線
+  const at = (r, c) => (c >= 0 && c <= r && r < 5 ? (r * (r + 1)) / 2 + c : -1);
+  const dirs = [[0, 1], [1, 0], [1, 1]];
   const memo = new Map();
   function win(board) {
     if (board === 0) return true;
     if (memo.has(board)) return memo.get(board);
-    const cells = core.maskToIndices(board);
     let result = false;
-    outer: for (let i = 0; i < cells.length; i++) {
-      const a = cells[i];
-      if (!win(board & ~(1 << a))) { result = true; break; }
-      for (let j = i + 1; j < cells.length; j++) {
-        const b = cells[j];
-        if (adj(a, b) && !win(board & ~(1 << a) & ~(1 << b))) { result = true; break outer; }
-        for (let k = j + 1; k < cells.length; k++) {
-          const c = cells[k];
-          const e = (adj(a, b) ? 1 : 0) + (adj(b, c) ? 1 : 0) + (adj(a, c) ? 1 : 0);
-          if (e >= 2 && !win(board & ~(1 << a) & ~(1 << b) & ~(1 << c))) { result = true; break outer; }
+    search: for (let r = 0; r < 5; r++) {
+      for (let c = 0; c <= r; c++) {
+        const a = at(r, c);
+        if (!(board & (1 << a))) continue;
+        if (!win(board & ~(1 << a))) { result = true; break search; }
+        for (const [dr, dc] of dirs) {
+          let taken = 1 << a;
+          for (let step = 1; step <= 2; step++) {
+            const x = at(r + dr * step, c + dc * step);
+            if (x < 0 || !(board & (1 << x))) break;
+            taken |= 1 << x;
+            if (!win(board & ~taken)) { result = true; break search; }
+          }
         }
       }
     }
@@ -93,19 +103,22 @@ test('基本局面：空盤為必勝（對手拿了最後一子）、剩一子�
   }
 });
 
-test('結論：完整開局先手必敗（後手必勝），先手沒有任何必勝第一步', () => {
-  assert.equal(core.isWinning(FULL), false);
-  assert.equal(core.winningMoves(FULL).length, 0);
-  // 先手的每一種第一步，後手都至少有一個致勝回應
-  for (const mv of core.legalMoves(FULL)) {
-    assert.ok(core.winningMoves(FULL ^ mv).length > 0, `第一步 ${core.maskToNumbers(mv)}`);
+test('結論：完整開局先手必勝，必勝第一步恰為取單顆 1、4、5、6、8、9、11、13、15', () => {
+  assert.equal(core.isWinning(FULL), true);
+  const firsts = core.winningMoves(FULL).map(core.maskToNumbers);
+  assert.deepEqual(firsts, [[1], [4], [5], [6], [8], [9], [11], [13], [15]]);
+  // 取這些之後，後手的每一種回應都讓先手再回到必勝局面
+  for (const mv of core.winningMoves(FULL)) {
+    const after = FULL ^ mv;
+    assert.equal(core.winningMoves(after).length, 0);
+    for (const reply of core.legalMoves(after)) assert.ok(core.isWinning(after ^ reply));
   }
 });
 
 test('統計表總和正確', () => {
   const rows = core.statsByCount();
   assert.equal(rows.reduce((s, r) => s + r.total, 0), 32768);
-  assert.deepEqual(rows[15], { remaining: 15, total: 1, win: 0, lose: 1 });
+  assert.deepEqual(rows[15], { remaining: 15, total: 1, win: 1, lose: 0 });
   assert.deepEqual(rows[1], { remaining: 1, total: 15, win: 0, lose: 15 });
 });
 
@@ -144,8 +157,8 @@ test('紀錄格式：完整對局可驗證、可重播、匯出匯入不變', ()
   const boards = core.replayBoards(rec);
   assert.equal(boards[0], FULL);
   assert.equal(boards.at(-1), 0);
-  // 完美下法：後手獲勝
-  assert.equal(rec.winner, 0);
+  // 完美下法：先手（此局為玩家 1）獲勝
+  assert.equal(rec.winner, 1);
   const again = core.importRecords(core.exportRecords([rec]));
   assert.deepEqual(again, [rec]);
 });
@@ -171,6 +184,10 @@ test('對稱：6 種變換皆保持鄰接與勝負', () => {
     for (let b = 0; b <= FULL; b += 7) assert.equal(core.isWinning(b), core.isWinning(core.transformMask(b, s)));
   }
   const fm = core.firstMoveAnalysis();
-  assert.equal(fm.reduce((n, c) => n + c.members.length, 0), 115);
-  assert.ok(fm.every((c) => !c.firstWins && c.replies.length > 0));
+  assert.equal(fm.reduce((n, c) => n + c.members.length, 0), 63);
+  assert.equal(fm.length, 14);
+  // 必勝第一步分成 3 類（角、邊中、內部），後手對它們都沒有致勝回應
+  const wins = fm.filter((c) => c.firstWins);
+  assert.deepEqual(wins.map((c) => core.maskToNumbers(c.move)), [[1], [5], [13]]);
+  assert.ok(fm.every((c) => (c.firstWins ? c.replies.length === 0 : c.replies.length > 0)));
 });

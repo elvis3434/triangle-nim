@@ -1,5 +1,5 @@
 // 離線快取：安裝時預先快取全部檔案；之後先回快取、背景更新。
-const CACHE = 'triangle-nim-v1';
+const CACHE = 'triangle-nim-v2';
 const ASSETS = [
   './',
   'index.html',

@@ -155,7 +155,7 @@ function onCellTap(i) {
 function validateSelection() {
   const s = game.selected;
   if (!s) setHint('');
-  else if (!core.isConnected(s)) setHint(`已選 ${nums(s)}：選取的圓必須彼此相連`, true);
+  else if (!core.isLine(s)) setHint(`已選 ${nums(s)}：選取的圓必須相鄰且排成一直線`, true);
   else setHint(`已選 ${nums(s)}（${core.bitCount(s)} 顆）`);
 }
 
@@ -444,6 +444,10 @@ function renderStudy() {
   const classes = core.firstMoveAnalysis();
   const verdict = startWin ? '先手必勝' : '後手必勝';
   const fmtMoves = (list) => list.map((m) => nums(m)).join('；');
+  const counts = [1, 2, 3].map((k) => core.MOVES.filter((m) => core.bitCount(m) === k).length);
+  const total = core.MOVES.length;
+  const winClasses = classes.filter((c) => c.firstWins);
+  const allSingles = firstWins.every((m) => core.bitCount(m) === 1);
 
   $('#study').innerHTML = `
     <div class="card prose">
@@ -451,17 +455,21 @@ function renderStudy() {
       <p class="verdict">${verdict}</p>
       <p>在雙方都完美下法的前提下，完整的 15 顆開局是<strong>${startWin ? '先手' : '後手'}</strong>的必勝局。
       ${startWin
-        ? `先手的必勝第一步共 ${firstWins.length} 種：${fmtMoves(firstWins)}。`
-        : `先手的 115 種合法第一步<strong>全部</strong>會落入後手的必勝局面——<strong>沒有任何必勝的第一步</strong>。不論先手怎麼開局，後手都至少有一種致勝回應（見下表）。`}
+        ? `先手的 ${total} 種合法第一步中，必勝的共 <strong>${firstWins.length} 種</strong>${allSingles ? `，<strong>全部都是只取 1 顆</strong>：${firstWins.map(nums).join('、')}` : `：${fmtMoves(firstWins)}`}。
+          依對稱可分為 ${winClasses.length} 類：${winClasses.map((c) => c.members.map(nums).join('、')).join('／')}。
+          走出這些第一步後，後手不論怎麼回應，先手都還有致勝走法；其餘 ${total - firstWins.length} 種第一步則會讓後手反敗為勝（見下表）。`
+        : `先手的 ${total} 種合法第一步<strong>全部</strong>會落入後手的必勝局面——<strong>沒有任何必勝的第一步</strong>。不論先手怎麼開局，後手都至少有一種致勝回應（見下表）。`}
       </p>
-      <p class="muted">想親自驗證？到「對戰」選人機對戰、我先手、難度「困難」，你將無法獲勝。</p>
+      <p class="muted">${startWin
+        ? '想親自驗證？到「對戰」選人機對戰、電腦先手、難度「困難」，你將無法獲勝；改成我先手並照著「提示」走，就一定能贏。'
+        : '想親自驗證？到「對戰」選人機對戰、我先手、難度「困難」，你將無法獲勝。'}</p>
     </div>
 
     <div class="card prose">
       <h2>研究方法</h2>
       <ol>
         <li>15 顆圓各用 1 個位元表示是否還在，整個局面就是一個 15 位元整數，共 2<sup>15</sup> = 32768 種局面。</li>
-        <li>預先列出所有可一次取走的組合：大小 1–3 且在六方向鄰接下相連的子集，共 115 種（1 顆 15 種、2 顆 30 種、3 顆 70 種，其中 16 種為小三角形）。</li>
+        <li>預先列出所有可一次取走的組合：1–3 顆、彼此相鄰且排成一直線（橫向或兩個斜向），共 ${total} 種（1 顆 ${counts[0]} 種、2 顆 ${counts[1]} 種、3 顆 ${counts[2]} 種）。L 形、彎折與小三角形都不算。</li>
         <li>定義 W(局面) = 輪到走的一方能否必勝。因為拿最後一顆的人輸，W(空盤) = 必勝（對手剛拿走最後一顆）。</li>
         <li>對其他局面：只要存在某個合法取法讓對手落入必敗局面，W 就是必勝；否則必敗。每次取子都讓位元數變少，所以由小到大依序計算即可，不會遺漏或循環。</li>
         <li>程式中另寫了一個完全獨立的遞迴版本，單元測試確認兩者在全部 32768 個局面結果一致，並驗證六種三角形對稱不改變勝負。</li>
@@ -470,7 +478,7 @@ function renderStudy() {
 
     <div class="card prose">
       <h2>先手第一步 vs 後手致勝回應</h2>
-      <p class="muted">115 種第一步依三角形的旋轉／翻轉對稱歸成 ${classes.length} 類，每類列出代表走法、同類數量與後手所有致勝回應。</p>
+      <p class="muted">${total} 種第一步依三角形的旋轉／翻轉對稱歸成 ${classes.length} 類，每類列出代表走法、同類數量與後手所有致勝回應。</p>
       <div class="table-scroll">
         <table class="first-moves">
           <thead><tr><th>先手取</th><th>同類</th><th>結果</th><th>後手致勝回應</th></tr></thead>
@@ -479,7 +487,7 @@ function renderStudy() {
               <td>${nums(c.move)}</td>
               <td>${c.members.length}</td>
               <td>${c.firstWins ? '<span class="tag win">先手勝</span>' : '<span class="tag lose">先手敗</span>'}</td>
-              <td>${c.replies.length} 種：${fmtMoves(c.replies)}</td>
+              <td>${c.replies.length ? `${c.replies.length} 種：${fmtMoves(c.replies)}` : '無（後手怎麼走都必敗）'}</td>
             </tr>`).join('')}
           </tbody>
         </table>

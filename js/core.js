@@ -57,34 +57,33 @@ export function numbersToMask(nums) {
   return indicesToMask(nums.map((n) => n - 1));
 }
 
-// 一組格子是否在鄰接關係下連通
-export function isConnected(m) {
-  if (m === 0) return false;
-  const start = maskToIndices(m)[0];
-  let seen = 1 << start;
-  const stack = [start];
-  while (stack.length) {
-    const i = stack.pop();
-    for (const j of NEIGHBORS[i]) {
-      const b = 1 << j;
-      if (m & b && !(seen & b)) { seen |= b; stack.push(j); }
-    }
+// 一組格子是否為「相鄰且在同一直線上」：沿三個方向之一 (0,1)、(1,0)、(1,1) 連續排列
+const LINE_DIRS = ['0,1', '1,0', '1,1'];
+export function isLine(m) {
+  const cells = maskToIndices(m).map((i) => CELLS[i]);
+  if (cells.length === 0) return false;
+  if (cells.length === 1) return true;
+  // maskToIndices 已依編號（先列後位置）排序
+  const dir = `${cells[1].r - cells[0].r},${cells[1].c - cells[0].c}`;
+  if (!LINE_DIRS.includes(dir)) return false;
+  for (let k = 2; k < cells.length; k++) {
+    if (`${cells[k].r - cells[k - 1].r},${cells[k].c - cells[k - 1].c}` !== dir) return false;
   }
-  return seen === m;
+  return true;
 }
 
-// 所有大小 1–3 的連通子集（作為一步可取走的組合）
+// 所有大小 1–3、相鄰且成一直線的組合（作為一步可取走的組合）
 export const MOVES = (() => {
   const list = [];
   for (let m = 1; m <= FULL; m++) {
     const k = bitCount(m);
-    if (k <= 3 && isConnected(m)) list.push(m);
+    if (k <= 3 && isLine(m)) list.push(m);
   }
   return list;
 })();
 
 export function isLegalMove(board, move) {
-  return move !== 0 && (move & board) === move && bitCount(move) <= 3 && isConnected(move);
+  return move !== 0 && (move & board) === move && bitCount(move) <= 3 && isLine(move);
 }
 
 export function legalMoves(board) {
