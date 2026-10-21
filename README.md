@@ -142,13 +142,13 @@ python3 -m http.server 8080
 
 ## 部署到 GitHub Pages
 
-`.github/workflows/pages.yml` 會在推送到 `main` 分支時先跑測試，通過後自動部署到 <https://elvis3434.github.io/triangle-nim/>。
+`.github/workflows/pages.yml` 會在每次推送時跑測試；推送到**預設分支**（Settings → General → Default branch 所設定的分支）且測試通過後，自動部署到 <https://elvis3434.github.io/triangle-nim/>。
 
 **第一次需要手動設定一次：**
 
 1. 到 GitHub 儲存庫 **Settings → Pages**。
 2. **Build and deployment → Source** 選 **GitHub Actions**。
-3. 確認 `main` 是預設分支（Settings → General → Default branch）；把開發分支合併到 `main` 後就會觸發部署。也可以在 **Actions** 分頁手動執行此 workflow（workflow_dispatch）。
+3. 之後只要推送到預設分支就會自動部署；也可以在 **Actions** 分頁手動執行此 workflow（workflow_dispatch）。
 
 部署完成後，在手機的 Chrome 開啟網址，選單中的「加入主畫面」即可像 App 一樣使用；iOS Safari 則用「分享 → 加入主畫面」。
 

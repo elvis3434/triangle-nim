@@ -2,7 +2,6 @@ name: 測試並部署到 GitHub Pages
 
 on:
   push:
-    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -27,7 +26,8 @@ jobs:
 
   deploy:
     needs: test
-    if: github.event_name != 'pull_request'
+    # 只從預設分支部署（不論它叫 main 或其他名稱）
+    if: github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
     environment:
       name: github-pages
