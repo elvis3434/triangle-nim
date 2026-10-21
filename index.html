@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>三角取子 Triangle Nim</title>
+  <meta name="description" content="15 顆圓的三角形取子遊戲（拿最後一子者輸）">
+  <meta name="theme-color" content="#1f6f5c">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="三角取子">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>三角取子</h1>
+    <nav class="tabs" role="tablist">
+      <button data-view="play" class="active">對戰</button>
+      <button data-view="records">紀錄</button>
+      <button data-view="replay">複盤</button>
+      <button data-view="study">先後手研究</button>
+      <button data-view="rules">規則</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- 對戰 -->
+    <section id="view-play" class="view active">
+      <details id="setup" class="card" open>
+        <summary>新局設定</summary>
+        <div class="setup-grid">
+          <fieldset>
+            <legend>模式</legend>
+            <label><input type="radio" name="mode" value="ai" checked> 人機對戰</label>
+            <label><input type="radio" name="mode" value="pvp"> 雙人對戰</label>
+          </fieldset>
+          <fieldset class="only-ai">
+            <legend>先手</legend>
+            <label><input type="radio" name="first" value="human" checked> 我先手</label>
+            <label><input type="radio" name="first" value="ai"> 電腦先手</label>
+          </fieldset>
+          <fieldset class="only-ai">
+            <legend>難度</legend>
+            <label><input type="radio" name="difficulty" value="easy" checked> 簡單</label>
+            <label><input type="radio" name="difficulty" value="hard"> 困難</label>
+          </fieldset>
+          <fieldset class="only-pvp" hidden>
+            <legend>玩家名稱（先手在前）</legend>
+            <input id="name0" type="text" value="玩家一" maxlength="12">
+            <input id="name1" type="text" value="玩家二" maxlength="12">
+          </fieldset>
+        </div>
+        <button id="btn-new" class="primary wide">開始新局</button>
+      </details>
+
+      <div class="status" id="status" aria-live="polite">按「開始新局」開始遊戲</div>
+      <div class="board-wrap"><svg id="board" class="board" role="group" aria-label="棋盤"></svg></div>
+      <div class="hint-line" id="hint-line"></div>
+      <div class="actions">
+        <button id="btn-take" class="primary" disabled>確定取子</button>
+        <button id="btn-clear" disabled>取消選取</button>
+        <button id="btn-hint" disabled>提示</button>
+      </div>
+      <ol class="movelist" id="play-moves"></ol>
+    </section>
+
+    <!-- 紀錄 -->
+    <section id="view-records" class="view">
+      <div class="card row-actions">
+        <button id="btn-export">匯出 JSON</button>
+        <label class="button">匯入 JSON<input id="file-import" type="file" accept="application/json,.json" hidden></label>
+        <button id="btn-clear-all" class="danger">全部刪除</button>
+      </div>
+      <p class="muted" id="records-empty">尚無對局紀錄。每局結束後會自動儲存在本機瀏覽器。</p>
+      <ul class="records" id="records-list"></ul>
+    </section>
+
+    <!-- 複盤 -->
+    <section id="view-replay" class="view">
+      <p class="muted" id="replay-empty">請先到「紀錄」選一局按「複盤」。</p>
+      <div id="replay-body" hidden>
+        <div class="card replay-info" id="replay-info"></div>
+        <div class="status" id="replay-status"></div>
+        <div class="board-wrap"><svg id="replay-board" class="board" aria-label="複盤棋盤"></svg></div>
+        <div class="actions replay-controls">
+          <button id="rp-start" title="回到開局" aria-label="回到開局">⏮</button>
+          <button id="rp-prev" aria-label="上一步">◀ 上一步</button>
+          <button id="rp-next" aria-label="下一步">下一步 ▶</button>
+          <button id="rp-end" title="跳到終局" aria-label="跳到終局">⏭</button>
+        </div>
+        <div class="actions replay-controls">
+          <button id="rp-auto" class="primary">▶ 自動播放</button>
+          <label>間隔
+            <select id="rp-interval">
+              <option value="1000">1 秒</option>
+              <option value="2000" selected>2 秒</option>
+              <option value="3000">3 秒</option>
+            </select>
+          </label>
+          <label><input type="checkbox" id="rp-analysis"> 顯示勝負分析</label>
+        </div>
+        <ol class="movelist" id="replay-moves"></ol>
+      </div>
+    </section>
+
+    <!-- 先後手研究 -->
+    <section id="view-study" class="view">
+      <div id="study"></div>
+    </section>
+
+    <!-- 規則 -->
+    <section id="view-rules" class="view">
+      <div class="card prose">
+        <h2>遊戲規則</h2>
+        <ol>
+          <li>棋盤為 15 顆圓排成的三角形：第 1 列 1 顆、第 2 列 2 顆……第 5 列 5 顆，編號 1–15（由上而下、由左而右）。</li>
+          <li>每顆圓最多與 6 顆圓相鄰（左右、左上、右上、左下、右下）。</li>
+          <li>兩人輪流取子，每次取走 1–3 顆<strong>彼此相連</strong>的圓。形狀不限：直線、彎折（L 形）、小三角形皆可。</li>
+          <li>只能取尚未被取走的圓；三顆時只要三顆整體相連即可（例如 1-2-5）。</li>
+          <li><strong>拿走最後一顆圓的人輸。</strong></li>
+        </ol>
+        <h2>操作方式</h2>
+        <ul>
+          <li>點一下圓圈選取，再點一下取消。選好後按「確定取子」。</li>
+          <li>「取消選取」清除目前的選擇；「提示」會顯示目前局面的勝負與建議走法。</li>
+          <li>每局結束自動存入「紀錄」，可在「複盤」逐步或自動（1/2/3 秒）重播。</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="end-dialog">
+    <form method="dialog">
+      <h2 id="end-title">遊戲結束</h2>
+      <p id="end-text"></p>
+      <div class="actions">
+        <button value="replay" class="primary">複盤此局</button>
+        <button value="again">再來一局</button>
+        <button value="close">關閉</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
